@@ -1,0 +1,45 @@
+# Android 中国象棋 AI 辅助系统配置示例
+#
+# 复制成 configs/config.yaml 后按需修改；也可以直接跑 `assistant calibrate`
+# 让它自动写入棋盘区域。配置文件不存在时程序会使用内置默认值。
+
+device:
+    adb_path: ""
+    adb_serial: ""
+capture:
+    fps: 5
+    frames_dir: ""
+    frame_file: ""
+    repeat_each: 1
+board:
+    # 这几个值由 `assistant calibrate` 写入；手工填写时注意：
+    # 它们是棋盘左上角交叉点到右下角交叉点的跨度，不是图片边缘。
+    x: 120
+    y: 310
+    width: 870
+    height: 970
+vision:
+    # 取样区域边长；0 表示按格距自动推算（约格距的 45%），
+    # 这个比例是为了避开格子边缘的「最后一步」高亮框
+    roi_size: 0
+    # 判定某个格点发生变化的平均灰度差阈值
+    diff_threshold: 20
+    # 判定棋局落定所需的连续静止帧数，用来滤掉走子动画
+    stable_frames: 3
+    # 参与组合成候选走法的最大格点数
+    max_candidate_cells: 4
+    # 推断失败时额外抓取的帧数
+    retry_frames: 3
+engine:
+    path: ./bin/pikafish
+    threads: 4
+    hash_mb: 256
+    movetime_ms: 500
+    multipv: 3
+    eval_file: ""
+log:
+    level: info
+    file: ""
+debug:
+    dir: debug
+    save_frames: false
