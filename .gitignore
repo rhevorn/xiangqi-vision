@@ -1,0 +1,17 @@
+# 构建产物
+/bin/
+
+# Pikafish 源码（由 make pikafish 拉取）
+/third_party/
+
+# 排查用的截图与中间产物
+/debug/
+
+# simulate 生成的演示画面（可用 make testdata 重新生成）
+/testdata/game/
+
+# 本机校准结果（含设备相关的棋盘坐标）
+/configs/config.yaml
+
+# macOS
+.DS_Store
