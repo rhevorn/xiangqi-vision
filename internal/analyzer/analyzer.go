@@ -90,19 +90,27 @@ func (a *Analyzer) Analyze(
 //
 // b 必须是分析前的局面：中文记谱依赖走子前的站位，PV 也需要沿着变化推演。
 func (a *Analyzer) build(b *game.Board, an *engine.Analysis) *Result {
+	// 渐进式刷新期间引擎还没吐出 bestmove（它只在搜索结束那一行给出），
+	// 此时用当前首选候选顶上。否则每一次中间结果的 BestMove 都是零值，
+	// "先给一个快速答案" 就无从谈起了。
+	best := an.BestMove
+	if best.IsZero() && len(an.Candidates) > 0 {
+		best = an.Candidates[0].Move
+	}
+
 	res := &Result{
 		FEN:        b.FEN(),
 		SideToMove: b.SideToMove(),
 		Status:     b.Status(),
-		BestMove:   an.BestMove,
+		BestMove:   best,
 		BestFor:    b.SideToMove(),
 		Score:      an.Score,
 		Depth:      an.Depth,
 		Nodes:      an.Nodes,
 		Elapsed:    an.Elapsed,
 	}
-	if !an.BestMove.IsZero() {
-		res.BestNotation = game.FormatChinese(b, an.BestMove)
+	if !best.IsZero() {
+		res.BestNotation = game.FormatChinese(b, best)
 	}
 
 	for _, c := range an.Candidates {
