@@ -297,6 +297,7 @@ func (e *UCIEngine) search(ctx context.Context, b *game.Board, opts AnalyzeOptio
 					final.Ponder, final.HasPonder = p, true
 				}
 			}
+			promoteBest(final, m)
 			return final, nil
 
 		case strings.HasPrefix(line, "info "):
@@ -396,26 +397,75 @@ func goCommand(opts AnalyzeOptions) string {
 	}
 }
 
-// buildAnalysis 深拷贝当前累积的候选，按 MultiPV 顺序排列。
+// buildAnalysis 深拷贝累积到的候选，保持引擎给出的 MultiPV 名次。
+//
+// 两点值得说明：
+//
+//  1. 名次用引擎的，不按评分重排。MultiPV 的序号就是引擎的排序结果，而评分
+//     在跨深度时并不可比——时间快到时最后一层可能只发出了 multipv 1 就被
+//     切断，此时手上的候选来自不同深度，分数高低说明不了名次。
+//
+//  2. 同一走法可能挂在两个序号上：引擎加深时会调整候选次序，若 bestmove 恰好
+//     在某一层只发出了部分 multipv 行时到达，旧深度的那份就残留下来了。按
+//     深度取新的那份即可。
 func buildAnalysis(an *Analysis, byMultiPV map[int]*Candidate) *Analysis {
 	out := *an
 	if len(byMultiPV) == 0 {
 		out.Candidates = nil
 		return &out
 	}
+
 	keys := make([]int, 0, len(byMultiPV))
 	for k := range byMultiPV {
 		keys = append(keys, k)
 	}
 	sort.Ints(keys)
 
-	out.Candidates = make([]Candidate, 0, len(keys))
+	byMove := make(map[game.Move]Candidate, len(keys))
+	order := make([]game.Move, 0, len(keys))
 	for _, k := range keys {
 		c := *byMultiPV[k]
 		c.PV = append([]game.Move(nil), c.PV...)
-		out.Candidates = append(out.Candidates, c)
+
+		if prev, ok := byMove[c.Move]; ok {
+			if c.Depth > prev.Depth {
+				byMove[c.Move] = c
+			}
+			continue
+		}
+		byMove[c.Move] = c
+		order = append(order, c.Move)
+	}
+
+	out.Candidates = make([]Candidate, 0, len(order))
+	for _, mv := range order {
+		out.Candidates = append(out.Candidates, byMove[mv])
 	}
 	return &out
+}
+
+// promoteBest 把 bestmove 挪到候选列表最前面。
+//
+// bestmove 行才是权威结果：引擎可能在最后关头换了主意，而那一层的 multipv 行
+// 还没发全，于是累积出来的首选候选未必就是它。候选里若压根没有这个走法，就
+// 补一条进去。
+func promoteBest(an *Analysis, best game.Move) {
+	for i, c := range an.Candidates {
+		if c.Move != best {
+			continue
+		}
+		if i > 0 {
+			copy(an.Candidates[1:i+1], an.Candidates[0:i])
+			an.Candidates[0] = c
+		}
+		return
+	}
+	an.Candidates = append([]Candidate{{
+		Move:  best,
+		Score: an.Score,
+		Depth: an.Depth,
+		PV:    []game.Move{best},
+	}}, an.Candidates...)
 }
 
 // parseBestMove 解析 "bestmove c3c4 ponder g6g5"。

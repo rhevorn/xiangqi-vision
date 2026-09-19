@@ -290,3 +290,92 @@ func TestPikafishNoLegalMove(t *testing.T) {
 		t.Errorf("将死局面应返回 ErrNoLegalMove，实际 %v", err)
 	}
 }
+
+// 候选保持引擎给出的 MultiPV 名次，即使评分因为来自不同深度而不单调。
+//
+// 这不是理论问题：时间快到时最后一层可能只发出了 multipv 1 就被切断，此时
+// 手上的候选来自不同深度，分数高低说明不了名次。
+func TestBuildAnalysisKeepsMultiPVOrder(t *testing.T) {
+	mv := func(s string) game.Move {
+		m, err := game.ParseMove(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+
+	// 名次 2 的评分反而比名次 3 低：因为一个来自新深度、一个来自旧深度
+	byMultiPV := map[int]*Candidate{
+		1: {Move: mv("h2e2"), Score: Score{CP: 19}, Depth: 21, PV: []game.Move{mv("h2e2")}},
+		2: {Move: mv("c3c4"), Score: Score{CP: 16}, Depth: 21, PV: []game.Move{mv("c3c4")}},
+		3: {Move: mv("b0c2"), Score: Score{CP: 18}, Depth: 20, PV: []game.Move{mv("b0c2")}},
+	}
+
+	an := buildAnalysis(&Analysis{}, byMultiPV)
+	want := []string{"h2e2", "c3c4", "b0c2"}
+	if len(an.Candidates) != len(want) {
+		t.Fatalf("应保留 %d 个候选，实际 %d", len(want), len(an.Candidates))
+	}
+	for i, w := range want {
+		if got := an.Candidates[i].Move.UCI(); got != w {
+			t.Errorf("第 %d 个候选是 %s，期望 %s（应保持 MultiPV 名次）", i+1, got, w)
+		}
+	}
+
+	// 同一走法挂在不同序号上：保留深度更大的那一份
+	dup := map[int]*Candidate{
+		1: {Move: mv("h2e2"), Score: Score{CP: 23}, Depth: 22, PV: []game.Move{mv("h2e2")}},
+		2: {Move: mv("h2e2"), Score: Score{CP: 20}, Depth: 21, PV: []game.Move{mv("h2e2")}},
+		3: {Move: mv("c3c4"), Score: Score{CP: 15}, Depth: 22, PV: []game.Move{mv("c3c4")}},
+	}
+	an = buildAnalysis(&Analysis{}, dup)
+	if len(an.Candidates) != 2 {
+		t.Fatalf("重复走法应被去掉，实际剩 %d 个", len(an.Candidates))
+	}
+	if an.Candidates[0].Move.UCI() != "h2e2" || an.Candidates[0].Depth != 22 {
+		t.Errorf("应保留深度更新（22）的那一份，实际 %+v", an.Candidates[0])
+	}
+
+	if got := buildAnalysis(&Analysis{}, nil); got.Candidates != nil {
+		t.Error("没有候选时应返回 nil")
+	}
+}
+
+// bestmove 是权威结果，必须排在候选列表最前面。
+func TestPromoteBest(t *testing.T) {
+	mv := func(s string) game.Move {
+		m, err := game.ParseMove(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+
+	// 引擎在最后关头换了主意：bestmove 是候选里的第 3 个
+	an := &Analysis{
+		Candidates: []Candidate{
+			{Move: mv("g3g4"), Depth: 20},
+			{Move: mv("b0c2"), Depth: 20},
+			{Move: mv("h2e2"), Depth: 20},
+		},
+	}
+	best := mv("h2e2")
+	promoteBest(an, best)
+	if an.Candidates[0].Move != best {
+		t.Errorf("bestmove 应被提到最前，实际 %s", an.Candidates[0].Move)
+	}
+	if len(an.Candidates) != 3 {
+		t.Errorf("只应调整顺序，不应增删，实际 %d 个", len(an.Candidates))
+	}
+	// 其余候选保持原有相对次序
+	if an.Candidates[1].Move.UCI() != "g3g4" || an.Candidates[2].Move.UCI() != "b0c2" {
+		t.Errorf("其余候选次序被打乱: %v", an.Candidates)
+	}
+
+	// 候选里压根没有这个走法：补一条进去
+	an2 := &Analysis{Candidates: []Candidate{{Move: mv("g3g4")}}, Depth: 21, Score: Score{CP: 12}}
+	promoteBest(an2, best)
+	if len(an2.Candidates) != 2 || an2.Candidates[0].Move != best {
+		t.Errorf("应当补一条 bestmove 到最前，实际 %v", an2.Candidates)
+	}
+}
