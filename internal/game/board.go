@@ -49,6 +49,9 @@ func (b *Board) Set(sq Square, p Piece) {
 // SideToMove 返回当前行棋方。
 func (b *Board) SideToMove() Color { return b.side }
 
+// Cells 返回棋盘的按值快照，供需要在别处长期持有或跨 goroutine 传递的调用方使用。
+func (b *Board) Cells() [Rows][Cols]Piece { return b.cells }
+
 // SetSideToMove 强制设置行棋方（人工纠错用）。
 func (b *Board) SetSideToMove(c Color) { b.side = c }
 

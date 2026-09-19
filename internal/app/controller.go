@@ -15,6 +15,8 @@ import (
 	"image"
 	"log/slog"
 	"path/filepath"
+	"slices"
+	"sync/atomic"
 	"time"
 
 	"xiangqi-vision/internal/analyzer"
@@ -59,6 +61,9 @@ func (s State) String() string {
 }
 
 // Hooks 是控制器向 UI 汇报的回调，未设置的会被跳过。
+//
+// 所有回调都在主循环所在的 goroutine 上被调用，因此回调里可以安全地读取
+// 传进来的值；但不要反过来调用控制器的方法，那会和主循环抢状态。
 type Hooks struct {
 	// OnState 在状态变化时被调用。
 	OnState func(State)
@@ -68,6 +73,9 @@ type Hooks struct {
 	OnProgress func(*analyzer.Result)
 	// OnResult 在分析完成时被调用。
 	OnResult func(*analyzer.Result)
+	// OnStatus 在棋盘、状态或分析结果发生变化时被调用，携带一份完整快照。
+	// 面向网页这类需要"总是渲染完整界面"的 UI。
+	OnStatus func(*Status)
 }
 
 // Controller 驱动整条链路。
@@ -82,12 +90,25 @@ type Controller struct {
 	board      *game.Board
 	tracker    *vision.StabilityTracker
 	lastStable *image.Gray
+	engineName string
 
 	state    State
 	desynced bool
 	frameNo  int
 	lastMove game.Move
 	hasLast  bool
+	detected string
+	notice   string
+	moves    []string
+
+	// lastResult 缓存最近一次分析结果，让每轮推出去的快照里始终带着它。
+	lastResult *analyzer.Result
+	lastFinal  bool
+
+	// resyncReq 与 paused 是唯一会被跨 goroutine 触碰的状态，用原子量传递
+	// 意图，真正的修改仍发生在主循环里，避免加锁。
+	resyncReq atomic.Bool
+	paused    atomic.Bool
 }
 
 // New 创建控制器。
@@ -110,9 +131,10 @@ func New(
 			MoveTime: cfg.Engine.MoveTime(),
 			MultiPV:  cfg.Engine.MultiPV,
 		}),
-		log:   log.With("component", "controller"),
-		hooks: hooks,
-		board: game.NewBoard(),
+		log:        log.With("component", "controller"),
+		hooks:      hooks,
+		board:      game.NewBoard(),
+		engineName: eng.Name(),
 		tracker: vision.NewStabilityTracker(
 			cal, cfg.Vision.DiffThreshold, cfg.Vision.StableFrames),
 	}
@@ -173,6 +195,14 @@ func (c *Controller) Run(ctx context.Context) error {
 
 // tick 处理一帧。
 func (c *Controller) tick(ctx context.Context) error {
+	// 每轮结束都推一份快照，网页那边就能持续刷新
+	defer c.publish()
+
+	// 重新同步的请求从任意 goroutine 发来，在这里统一落地
+	if c.resyncReq.Swap(false) {
+		c.doResync()
+	}
+
 	img, err := c.cap.Capture(ctx)
 	if err != nil {
 		return err
@@ -186,6 +216,14 @@ func (c *Controller) tick(ctx context.Context) error {
 	}
 
 	settled, maxDiff := c.tracker.Observe(gray)
+
+	if c.paused.Load() {
+		// 暂停期间不做任何推断，但让基线跟住当前画面，这样恢复时不会把暂停
+		// 期间的画面变化误判成走子。代价是暂停期间的走子不会被记录。
+		c.lastStable = gray
+		return nil
+	}
+
 	if !settled {
 		if maxDiff >= c.cfg.Vision.DiffThreshold {
 			c.setState(StateStabilizing)
@@ -284,7 +322,12 @@ func (c *Controller) acceptMove(m game.Move, diffs []vision.CellDiff) error {
 		return fmt.Errorf("应用走法失败: %w", err)
 	}
 	c.lastMove, c.hasLast = m, true
+	c.detected, c.notice = notation, ""
+	c.moves = append(c.moves, notation)
 	c.desynced = false
+	// 上一条建议是针对走子前的局面算的，已经作废，先清掉避免误导。
+	// 新局面的分析会在几百毫秒后补上。
+	c.lastResult, c.lastFinal = nil, false
 
 	c.log.Info("检测到走子",
 		"走法", notation,
@@ -305,6 +348,7 @@ func (c *Controller) acceptMove(m game.Move, diffs []vision.CellDiff) error {
 func (c *Controller) handleDesync(img *image.RGBA, gray *image.Gray, diffs []vision.CellDiff) error {
 	c.lastStable = gray
 	c.desynced = true
+	c.notice = "画面变了但推断不出合法走法，内部棋盘保持不变。请重新开局后在网页上点「重新同步」。"
 	c.setState(StateError)
 
 	path := c.saveDebugImage(img, diffs)
@@ -340,7 +384,14 @@ func (c *Controller) analyze(ctx context.Context) error {
 	}
 
 	c.setState(StateAnalyzing)
-	res, err := c.an.Analyze(ctx, c.board, c.hooks.OnProgress)
+	res, err := c.an.Analyze(ctx, c.board, func(partial *analyzer.Result) {
+		if c.hooks.OnProgress != nil {
+			c.hooks.OnProgress(partial)
+		}
+		if c.hooks.OnStatus != nil {
+			c.hooks.OnStatus(c.snapshot(partial, false))
+		}
+	})
 	if err != nil {
 		if errors.Is(err, engine.ErrNoLegalMove) {
 			c.setState(StateShowingResult)
@@ -355,18 +406,83 @@ func (c *Controller) analyze(ctx context.Context) error {
 	if c.hooks.OnResult != nil {
 		c.hooks.OnResult(res)
 	}
+	if c.hooks.OnStatus != nil {
+		c.hooks.OnStatus(c.snapshot(res, true))
+	}
 	return nil
 }
 
-// Resync 放弃当前局面，回到标准初始局面重新开始。
+// publish 把当前状态推给 UI。
+func (c *Controller) publish() {
+	if c.hooks.OnStatus == nil {
+		return
+	}
+	c.hooks.OnStatus(c.snapshot(nil, false))
+}
+
+// snapshot 组装一份状态快照。
+//
+// analysis 非 nil 时顺带更新缓存：这样每轮循环末尾推的快照里始终带着最近一次
+// 分析结果，而不会在引擎已经算完、下一轮循环刚开始时把界面上的建议抹掉。
+func (c *Controller) snapshot(analysis *analyzer.Result, final bool) *Status {
+	if analysis != nil {
+		c.lastResult, c.lastFinal = analysis, final
+	}
+	return &Status{
+		State:         c.state,
+		Board:         c.board.Cells(),
+		SideToMove:    c.board.SideToMove(),
+		FEN:           c.board.FEN(),
+		Result:        c.board.Status(),
+		Moves:         slices.Clone(c.moves),
+		LastMove:      c.lastMove,
+		HasLast:       c.hasLast,
+		Detected:      c.detected,
+		Desynced:      c.desynced,
+		Paused:        c.paused.Load(),
+		Engine:        c.engineName,
+		Analysis:      c.lastResult,
+		AnalysisFinal: c.lastFinal,
+		Notice:        c.notice,
+	}
+}
+
+// Resync 请求放弃当前局面，回到标准初始局面重新开始。
 //
 // 这是 MVP 的失步恢复手段：完整棋盘识别留到后续版本实现。
-func (c *Controller) Resync() {
+//
+// 重置动作会被推迟到主循环的下一轮开头执行，因此可以从任意 goroutine
+// 安全调用（命令行里按 r、网页上点按钮走的是同一条路径）。
+func (c *Controller) Resync() { c.resyncReq.Store(true) }
+
+// SetPaused 暂停或恢复画面分析。
+//
+// 暂停期间仍然抓屏并跟随画面，但不再推断走法；恢复时会以当时的画面作为
+// 新基线，因此暂停期间手机上的走子不会被记录。
+func (c *Controller) SetPaused(p bool) {
+	if c.paused.Swap(p) == p {
+		return
+	}
+	if p {
+		c.log.Info("已暂停分析")
+	} else {
+		c.log.Info("已恢复分析")
+	}
+}
+
+// Paused 报告是否已暂停。
+func (c *Controller) Paused() bool { return c.paused.Load() }
+
+// doResync 真正执行重置。只在主循环里调用。
+func (c *Controller) doResync() {
 	c.board = game.NewBoard()
 	c.lastStable = nil
 	c.desynced = false
 	c.hasLast = false
 	c.lastMove = game.Move{}
+	c.detected, c.notice = "", ""
+	c.moves = nil
+	c.lastResult, c.lastFinal = nil, false
 	c.tracker = vision.NewStabilityTracker(
 		c.cal, c.cfg.Vision.DiffThreshold, c.cfg.Vision.StableFrames)
 	c.setState(StateInitializing)

@@ -50,6 +50,12 @@ func (c *synthCapturer) Capture(context.Context) (*image.RGBA, error) {
 func (c *synthCapturer) Describe() string { return "测试用合成画面" }
 func (c *synthCapturer) Close() error     { return nil }
 
+// setFrames 换一段画面并从头播放，用来模拟"手机重开一局"。
+func (c *synthCapturer) setFrames(frames []*image.RGBA, repeat int) {
+	c.frames, c.repeat = frames, repeat
+	c.idx, c.repeats = 0, 0
+}
+
 func newCalibration(t *testing.T) *vision.Calibration {
 	t.Helper()
 	cal, err := vision.NewCalibration(boardRect, 0)
@@ -210,27 +216,38 @@ func TestDesyncDoesNotPolluteBoard(t *testing.T) {
 	}
 }
 
-// 重新同步：失步后回到标准初始局面。
+// 重新同步：失步后回到标准初始局面，并能接着正常跟踪。
+//
+// Resync 是"请求式"的——它只置一个标志，真正的重置发生在主循环下一轮开头，
+// 这样从网页或任意 goroutine 点按钮都是安全的。所以这里模拟的是真实流程：
+// 手机上重开一局 → 点重新同步 → 程序以新画面为基线继续跑。
 func TestResyncRecovers(t *testing.T) {
 	cal := newCalibration(t)
 	cfg := testConfig(t)
 
 	initial, broken := impossibleChangeFrames(t, cal)
-	frames := []*image.RGBA{initial, broken}
+	cap := &synthCapturer{frames: []*image.RGBA{initial, broken}, repeat: 8}
 
-	ctrl := app.New(cfg, &synthCapturer{frames: frames, repeat: 8}, cal,
-		engine.NewMock(), app.Hooks{}, quietLogger())
+	ctrl := app.New(cfg, cap, cal, engine.NewMock(), app.Hooks{}, quietLogger())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
 	if err := ctrl.Run(ctx); err != nil {
-		t.Fatalf("Run: %v", err)
+		t.Fatalf("第一轮 Run: %v", err)
 	}
 	if !ctrl.Desynced() {
 		t.Fatal("应处于失步状态")
 	}
 
+	// 手机上重开一局（画面回到标准初始局面），然后点「重新同步」
 	ctrl.Resync()
+	cap.setFrames([]*image.RGBA{initial}, 8)
+
+	if err := ctrl.Run(ctx); err != nil {
+		t.Fatalf("第二轮 Run: %v", err)
+	}
+
 	if ctrl.Desynced() {
 		t.Error("重新同步后不应再是失步状态")
 	}
@@ -239,6 +256,54 @@ func TestResyncRecovers(t *testing.T) {
 	}
 	if n := ctrl.Board().NumMoves(); n != 0 {
 		t.Errorf("重新同步后不应有走子历史，实际 %d 手", n)
+	}
+}
+
+// 暂停期间画面即使一直在变，也不应被当成走子写进棋盘。
+func TestPauseIgnoresChanges(t *testing.T) {
+	cal := newCalibration(t)
+	cfg := testConfig(t)
+
+	b := game.NewBoard()
+	next := b.Clone()
+	m, _ := game.ParseChinese(b, "炮二平五")
+	if err := next.Apply(m); err != nil {
+		t.Fatal(err)
+	}
+
+	initial := vision.RenderSyntheticBoard(b, cal, screenSize)
+	moved := vision.RenderSyntheticBoard(next, cal, screenSize)
+
+	cap := &synthCapturer{frames: []*image.RGBA{initial}, repeat: 8}
+	ctrl := app.New(cfg, cap, cal, engine.NewMock(), app.Hooks{}, quietLogger())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// 先跑一段建立基线
+	if err := ctrl.Run(ctx); err != nil {
+		t.Fatalf("第一轮 Run: %v", err)
+	}
+	startFEN := ctrl.Board().FEN()
+
+	// 暂停后画面发生了真实走子，但不应被记录
+	ctrl.SetPaused(true)
+	cap.setFrames([]*image.RGBA{moved}, 8)
+	if err := ctrl.Run(ctx); err != nil {
+		t.Fatalf("暂停期间 Run: %v", err)
+	}
+	if got := ctrl.Board().FEN(); got != startFEN {
+		t.Errorf("暂停期间的画面变化不应写进棋盘\n got: %s\nwant: %s", got, startFEN)
+	}
+
+	// 恢复后以当前画面为新基线，也不应把暂停期间的变化补记成走子
+	ctrl.SetPaused(false)
+	cap.setFrames([]*image.RGBA{moved}, 8)
+	if err := ctrl.Run(ctx); err != nil {
+		t.Fatalf("恢复后 Run: %v", err)
+	}
+	if got := ctrl.Board().FEN(); got != startFEN {
+		t.Errorf("恢复后不应把暂停期间的变化补记成走子\n got: %s\nwant: %s", got, startFEN)
 	}
 }
 
