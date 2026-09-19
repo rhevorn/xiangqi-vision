@@ -8,7 +8,7 @@ import (
 	"xiangqi-vision/internal/game"
 )
 
-// MoveCandidate 是视觉层推断出的候选走法（《技术方案》§10）。
+// MoveCandidate 是视觉层推断出的候选走法。
 //
 // 视觉只负责"猜"，规则层负责"确认"：这里两个方向都会给出，由控制器交给
 // 象棋规则裁决哪一个合法。
@@ -58,7 +58,7 @@ func DetectMoveCandidates(diffs []CellDiff, minScore float64, maxCells int) []Mo
 	return out
 }
 
-// StabilityTracker 判断画面是否已经静止（《技术方案》§8）。
+// StabilityTracker 判断画面是否已经静止。
 //
 // 象棋 App 普遍有走子动画、落子高亮与"最后一步"标记，看到变化就分析必然
 // 会读到中间的动画帧。因此必须等到连续若干帧不再变化，才认为棋局落定。

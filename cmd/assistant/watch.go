@@ -63,7 +63,7 @@ func cmdWatch(args []string) error {
 			if !*progress || *quiet || r.BestNotation == "" {
 				return
 			}
-			// 单行刷新，让"先给快速答案、再不断加深"的过程可见（§14）
+			// 单行刷新，让"先给快速答案、再不断加深"的过程可见
 			fmt.Fprintf(out, "\r  分析中… 深度 %-3d %s %-8s   ",
 				r.Depth, r.Score, r.BestNotation)
 		},

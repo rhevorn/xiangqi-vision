@@ -1,6 +1,6 @@
-// Package overlay 负责终端展示（《技术方案》§15）。
+// Package overlay 负责终端展示。
 //
-// 第一版 UI 是 CLI/TUI（§2），这里实现棋盘的文本渲染与分析结果的排版。
+// 第一版 UI 是 CLI/TUI，这里实现棋盘的文本渲染与分析结果的排版。
 // 后续要换成 Wails 或原生 macOS 浮层时，这一层可以整体替换。
 package overlay
 
@@ -110,7 +110,7 @@ func cellText(p game.Piece, highlighted, color bool) string {
 	return c + name + ansiReset + " "
 }
 
-// RenderAnalysis 按《技术方案》§15 的样式排版分析结果。
+// RenderAnalysis 排版分析结果：最佳走法、评分、搜索信息与候选列表。
 func RenderAnalysis(res *analyzer.Result, opts Options) string {
 	var sb strings.Builder
 

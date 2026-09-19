@@ -83,7 +83,7 @@ func TestCalibrationGeometry(t *testing.T) {
 		t.Errorf("应有 90 个格点，实际 %d", got)
 	}
 
-	// 取样区域应明显小于格距，才能避开格子边缘的装饰（§8）
+	// 取样区域应明显小于格距，才能避开格子边缘的装饰
 	if cal.ROISize >= int(dx) || cal.ROISize >= int(dy) {
 		t.Errorf("取样尺寸 %d 不小于格距 %.1fx%.1f", cal.ROISize, dx, dy)
 	}
@@ -203,7 +203,7 @@ func TestDetectMoveCandidates(t *testing.T) {
 		t.Errorf("首选候选 = %s，期望 %s 或其反向", first, m)
 	}
 
-	// 关键：反向走法在规则上不合法，因此规则层能唯一定出真实走法（§10）
+	// 关键：反向走法在规则上不合法，因此规则层能唯一定出真实走法
 	reverse := game.Move{From: m.To, To: m.From}
 	if b0.IsLegal(reverse) {
 		t.Error("该测试局面的反向走法本应非法，否则无法体现规则层的筛选作用")
@@ -237,7 +237,7 @@ func TestCandidatesFilteredByRules(t *testing.T) {
 	}
 }
 
-// 稳定判定必须能过滤掉走子动画。§8
+// 稳定判定必须能过滤掉走子动画。
 func TestStabilityTracker(t *testing.T) {
 	cal := newCal(t)
 	b0 := game.NewBoard()

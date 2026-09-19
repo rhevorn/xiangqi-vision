@@ -76,7 +76,7 @@ func TestBoardConfiguredAndRect(t *testing.T) {
 	}
 }
 
-// 手工写一份文档 §19 风格的配置，确认能被正确解析。
+// 手工写一份配置文件，确认能被正确解析。
 func TestLoadFromYAML(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

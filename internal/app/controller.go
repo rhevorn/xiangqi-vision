@@ -1,11 +1,11 @@
-// Package app 实现《技术方案》§18 的主循环状态机。
+// Package app 实现主循环状态机。
 //
-// 核心分工（§24 的一句话总结）：
+// 核心分工：
 //
 //	视觉只负责发现变化  →  象棋规则维护真实状态  →  Pikafish 专门负责搜索
 //
 // 三者之间只有一条硬性纪律：视觉推断出的走法必须先通过规则校验，否则绝不
-// 更新棋盘。宁可漏掉一手，也不能让错误的识别污染内部状态（§23）。
+// 更新棋盘。宁可漏掉一手，也不能让错误的识别污染内部状态。
 package app
 
 import (
@@ -25,7 +25,7 @@ import (
 	"xiangqi-vision/internal/vision"
 )
 
-// State 是主循环的状态（§18）。
+// State 是主循环的状态。
 type State int
 
 const (
@@ -64,7 +64,7 @@ type Hooks struct {
 	OnState func(State)
 	// OnDetected 在确认对方走子后、开始分析之前被调用。
 	OnDetected func(move game.Move, notation string)
-	// OnProgress 在引擎搜到更深一层时被调用，用于渐进式刷新（§14）。
+	// OnProgress 在引擎搜到更深一层时被调用，用于渐进式刷新。
 	OnProgress func(*analyzer.Result)
 	// OnResult 在分析完成时被调用。
 	OnResult func(*analyzer.Result)
@@ -124,7 +124,7 @@ func (c *Controller) Board() *game.Board { return c.board }
 // State 返回当前状态。
 func (c *Controller) State() State { return c.state }
 
-// Desynced 报告是否处于失步状态（§17）。
+// Desynced 报告是否处于失步状态。
 func (c *Controller) Desynced() bool { return c.desynced }
 
 // LastMove 返回最近确认的一步走法。
@@ -194,7 +194,7 @@ func (c *Controller) tick(ctx context.Context) error {
 	}
 
 	// 画面刚刚静止下来。首次静止只用来建立基线：MVP 只支持从标准初始
-	// 局面启动（§17），因此第一帧对应的就是初始局面。
+	// 局面启动，因此第一帧对应的就是初始局面。
 	if c.lastStable == nil {
 		c.lastStable = gray
 		c.setState(StateWaiting)
@@ -211,7 +211,7 @@ func (c *Controller) tick(ctx context.Context) error {
 	c.setState(StateDetectingMove)
 	move, ok := c.detectMove(diffs)
 	if !ok {
-		// 可能是稳定判定放行了动画的最后一帧：再抓几帧，拿同一基线重新比对（§18 Retry）
+		// 可能是稳定判定放行了动画的最后一帧：再抓几帧，拿同一基线重新比对
 		move, gray, ok = c.retryDetect(ctx)
 		if !ok {
 			return c.handleDesync(img, gray, diffs)
@@ -234,7 +234,7 @@ func (c *Controller) tick(ctx context.Context) error {
 // detectMove 在候选走法中找出唯一合法的那个。
 //
 // 视觉给出"哪两个格子在变"，规则层裁决"这是哪一步棋"。两格之间有两个
-// 方向，通常只有一个方向在该局面下合法，因此能唯一定出真实走法（§10）。
+// 方向，通常只有一个方向在该局面下合法，因此能唯一定出真实走法。
 func (c *Controller) detectMove(diffs []vision.CellDiff) (game.Move, bool) {
 	cands := vision.DetectMoveCandidates(
 		diffs, c.cfg.Vision.DiffThreshold, c.cfg.Vision.MaxCandidateCells)
@@ -300,8 +300,8 @@ func (c *Controller) acceptMove(m game.Move, diffs []vision.CellDiff) error {
 
 // handleDesync 处理"画面变了但推断不出合法走法"的情况。
 //
-// 按 §23 的硬性要求，此时绝不能更新棋盘。我们只把视觉基线推进到新画面，
-// 否则会对同一帧反复报错；同时标记失步，等待人工重新同步（§17）。
+// 此时绝不能更新棋盘。我们只把视觉基线推进到新画面，否则会对同一帧
+// 反复报错；同时标记失步，等待人工重新同步。
 func (c *Controller) handleDesync(img *image.RGBA, gray *image.Gray, diffs []vision.CellDiff) error {
 	c.lastStable = gray
 	c.desynced = true
@@ -316,7 +316,7 @@ func (c *Controller) handleDesync(img *image.RGBA, gray *image.Gray, diffs []vis
 	return nil
 }
 
-// saveDebugImage 把出错时的画面连同变化格标注一起落盘（§20）。
+// saveDebugImage 把出错时的画面连同变化格标注一起落盘。
 func (c *Controller) saveDebugImage(img *image.RGBA, diffs []vision.CellDiff) string {
 	dir := c.cfg.Debug.Dir
 	if dir == "" {
@@ -358,7 +358,7 @@ func (c *Controller) analyze(ctx context.Context) error {
 	return nil
 }
 
-// Resync 放弃当前局面，回到标准初始局面重新开始（§17）。
+// Resync 放弃当前局面，回到标准初始局面重新开始。
 //
 // 这是 MVP 的失步恢复手段：完整棋盘识别留到后续版本实现。
 func (c *Controller) Resync() {

@@ -1,4 +1,4 @@
-// Package config 负责读写 YAML 配置（《技术方案》§19）。
+// Package config 负责读写 YAML 配置。
 package config
 
 import (
@@ -33,7 +33,7 @@ type Device struct {
 
 // Capture 是抓屏配置。
 type Capture struct {
-	// FPS 为截图频率。象棋是回合制，2~5 已经足够（§5.1）。
+	// FPS 为截图频率。象棋是回合制，2~5 已经足够。
 	FPS int `yaml:"fps"`
 	// FramesDir 用本地图片目录代替真机，按文件名顺序回放（干跑/回归用）。
 	FramesDir string `yaml:"frames_dir"`
@@ -65,16 +65,16 @@ type Vision struct {
 	ROISize int `yaml:"roi_size"`
 	// DiffThreshold 为判定"某个格点发生了变化"的平均灰度差阈值。
 	DiffThreshold float64 `yaml:"diff_threshold"`
-	// StableFrames 为判定棋局落定所需的连续静止帧数（§8）。
+	// StableFrames 为判定棋局落定所需的连续静止帧数，用来滤掉走子动画。
 	StableFrames int `yaml:"stable_frames"`
 	// MaxCandidateCells 为参与组合成候选走法的最大格点数。
 	MaxCandidateCells int `yaml:"max_candidate_cells"`
-	// RetryFrames 为推断失败时额外抓取的帧数（§18 的 Retry）。
+	// RetryFrames 为推断失败时额外抓取的帧数。
 	// 稳定判定偶尔会落在动画的最后一帧上，多抓几帧通常就能拿到真正的终局画面。
 	RetryFrames int `yaml:"retry_frames"`
 }
 
-// Engine 是引擎配置（§14）。
+// Engine 是引擎配置。
 type Engine struct {
 	Path       string `yaml:"path"`
 	Threads    int    `yaml:"threads"`
@@ -96,7 +96,7 @@ type Log struct {
 	File string `yaml:"file"`
 }
 
-// Debug 是排查辅助配置（§20）。
+// Debug 是排查辅助配置。
 type Debug struct {
 	// Dir 为异常截图与中间产物的存放目录。
 	Dir string `yaml:"dir"`

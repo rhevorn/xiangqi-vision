@@ -13,7 +13,7 @@ import (
 // 二是提供一个"干跑"手段——不用连真机就能验证校准、差分与走法推断是否正常。
 //
 // highlights 用来模拟象棋 App 的"最后一步"高亮框：这些装饰画在格子边缘，
-// 正好可以用来检验取样区域是否真的避开了它们（§8）。
+// 正好可以用来检验取样区域是否真的避开了它们。
 func RenderSyntheticBoard(b *game.Board, cal *Calibration, size image.Point, highlights ...game.Square) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, size.X, size.Y))
 

@@ -17,7 +17,7 @@ type moveRecord struct {
 // Board 是一局中国象棋的完整状态：90 个交叉点 + 行棋方 + 走子历史。
 //
 // Board 可以按值安全地深拷贝（见 Clone）。视觉层永远只通过 Apply 更新棋盘，
-// 非法走法会被拒绝，从而保证"识别错误不污染内部棋盘状态"（§23）。
+// 非法走法会被拒绝，从而保证"识别错误不污染内部棋盘状态"。
 type Board struct {
 	cells    [Rows][Cols]Piece
 	side     Color

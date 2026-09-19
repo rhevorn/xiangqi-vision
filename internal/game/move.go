@@ -19,7 +19,7 @@ func (s Square) Valid() bool {
 // String 返回用于日志与显示的坐标，如 "H2"。
 //
 // 字母为列（a-i → A-I），数字为行号且以红方底线为 0，即 ICCS 记法。
-// 与《技术方案》§7/§20 中 "H3"、"E3" 的写法保持一致。
+// 例如红方右炮原位的坐标写作 "H2"，比行列数字更一眼可读。
 func (s Square) String() string {
 	if !s.Valid() {
 		return "??"

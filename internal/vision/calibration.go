@@ -36,7 +36,7 @@ type Cell struct {
 // Square 返回该格点对应的棋盘坐标。
 func (c Cell) Square() game.Square { return game.Square{Row: c.Row, Col: c.Col} }
 
-// Calibration 把画面像素坐标与棋盘行列对应起来（《技术方案》§6）。
+// Calibration 把画面像素坐标与棋盘行列对应起来。
 //
 // Board 记录用户点击的棋盘左上角与右下角**交叉点**所围成的矩形。
 // 中国象棋是 9 列 10 行，因此相邻格点的间距为：
@@ -55,7 +55,7 @@ type Calibration struct {
 //
 // 取 0.45 而非满格：象棋 App 普遍会在棋子上叠加「最后一步」的高亮方框、
 // 选中框或可走点提示，这些装饰都在格子的边缘。把取样区限制在格子中央，
-// 可以尽量只看到棋子本身，减少无关变化（§8）。
+// 可以尽量只看到棋子本身，减少无关变化。
 const DefaultROIRatio = 0.45
 
 // NewCalibration 根据棋盘矩形建立坐标映射。roiSize<=0 时按格距自动推算。

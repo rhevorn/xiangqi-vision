@@ -21,7 +21,7 @@ import (
 // errEngineGone 表示引擎子进程已退出，管道被关闭。
 var errEngineGone = errors.New("引擎进程已退出")
 
-// Options 是启动 UCI 引擎的配置，对应《技术方案》§14 与 §19 的 engine 段。
+// Options 是启动 UCI 引擎的配置，对应配置文件里的 engine 段。
 type Options struct {
 	// Path 是可执行文件路径，如 ./bin/pikafish。
 	Path string
@@ -89,7 +89,7 @@ func (e *UCIEngine) Analyze(ctx context.Context, b *game.Board, opts AnalyzeOpti
 		return nil, err
 	}
 
-	// 引擎进程意外退出：重启后重试一次（§23「引擎异常可自动重启」）
+	// 引擎进程意外退出：重启后重试一次
 	e.log.Warn("引擎进程异常退出，正在重启后重试", "err", err)
 	e.stop()
 	if err := e.ensureStarted(ctx); err != nil {

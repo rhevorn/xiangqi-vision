@@ -63,7 +63,7 @@ func (a *Analyzer) Engine() engine.Engine { return a.eng }
 
 // Analyze 分析棋盘当前局面。
 //
-// onProgress 会在引擎每搜到更深一层时被调用，可用于渐进式展示（§14）：
+// onProgress 会在引擎每搜到更深一层时被调用，可用于渐进式展示：
 // 先给出一个快速答案，随后不断刷新。
 func (a *Analyzer) Analyze(
 	ctx context.Context,

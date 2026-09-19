@@ -1,6 +1,6 @@
 // Package engine 封装 UCI 象棋引擎（Pikafish），把局面送进去、把分析拿回来。
 //
-// 引擎作为独立子进程运行，通过 stdin/stdout 用 UCI 协议通信（《技术方案》§13）。
+// 引擎作为独立子进程运行，通过 stdin/stdout 用 UCI 协议通信。
 package engine
 
 import (
@@ -76,7 +76,7 @@ type AnalyzeOptions struct {
 	Depth int
 	// MultiPV 为候选走法数量，0 表示使用引擎默认配置。
 	MultiPV int
-	// OnUpdate 在每一次取得更深的搜索结果时被调用，用于渐进式展示（§14）。
+	// OnUpdate 在每一次取得更深的搜索结果时被调用，用于渐进式展示。
 	// 它可能在 Analyze 返回之前被调用多次，实现方需要自己保证线程安全。
 	OnUpdate func(*Analysis)
 }

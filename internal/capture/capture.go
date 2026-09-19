@@ -1,4 +1,4 @@
-// Package capture 负责取得手机屏幕画面（《技术方案》§5）。
+// Package capture 负责取得手机屏幕画面。
 //
 // 第一版直接使用 adb exec-out screencap -p。象棋是回合制，帧率要求不高，
 // 2~5 FPS 已足够判断是否发生走棋。
@@ -73,7 +73,7 @@ func LoadImage(path string) (*image.RGBA, error) {
 	return toRGBA(img), nil
 }
 
-// SavePNG 把图像写入 PNG 文件（用于 debug/ 目录留档，§20）。
+// SavePNG 把图像写入 PNG 文件（用于 debug/ 目录留档）。
 func SavePNG(path string, img image.Image) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

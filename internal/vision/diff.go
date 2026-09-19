@@ -9,7 +9,7 @@ import (
 	"xiangqi-vision/internal/game"
 )
 
-// CellDiff 是一个交叉点在两帧之间的差异（《技术方案》§7）。
+// CellDiff 是一个交叉点在两帧之间的差异。
 type CellDiff struct {
 	Row   int
 	Col   int
@@ -19,7 +19,7 @@ type CellDiff struct {
 // Square 返回该差异对应的棋盘坐标。
 func (d CellDiff) Square() game.Square { return game.Square{Row: d.Row, Col: d.Col} }
 
-// String 返回形如 "H2=81.2" 的表示，对应 §20 的日志格式。
+// String 返回形如 "H2=81.2" 的表示。
 func (d CellDiff) String() string {
 	return fmt.Sprintf("%s=%.1f", d.Square(), d.Score)
 }
@@ -44,7 +44,7 @@ func DiffCells(a, b *image.Gray, cal *Calibration) []CellDiff {
 
 // meanAbsDiffROI 返回两块区域的平均绝对灰度差（0~255）。
 //
-// 这是第一版最简单的差异度量（§7：Gray → absdiff → mean pixel difference）。
+// 这是第一版最简单的差异度量：灰度化 → 逐像素求绝对差 → 取均值。
 func meanAbsDiffROI(a, b *image.Gray, roi Rect) float64 {
 	if roi.Width <= 0 || roi.Height <= 0 {
 		return 0
@@ -98,7 +98,7 @@ func TopChanged(diffs []CellDiff, n int) []CellDiff {
 	return sorted
 }
 
-// FormatTop 把前 n 个差异格式化成日志片段，如 "H2=81.2 E2=76.8"（§20）。
+// FormatTop 把前 n 个差异格式化成日志片段，如 "H2=81.2 E2=76.8"。
 func FormatTop(diffs []CellDiff, n int) string {
 	top := TopChanged(diffs, n)
 	parts := make([]string, 0, len(top))

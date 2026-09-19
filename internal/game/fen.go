@@ -14,7 +14,7 @@ const StartFEN = "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w 
 
 // FEN 返回当前局面的 FEN 字符串。
 //
-// 视觉层永远不要自己拼 FEN：FEN 只能由已确认的棋盘状态导出（§12）。
+// 视觉层永远不要自己拼 FEN：FEN 只能由已确认的棋盘状态导出。
 func (b *Board) FEN() string {
 	var sb strings.Builder
 	for r := 0; r < Rows; r++ {

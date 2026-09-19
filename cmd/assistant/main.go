@@ -1,6 +1,6 @@
 // Command assistant 是 Android 中国象棋 AI 辅助系统的命令行入口。
 //
-// 子命令按《技术方案》§21 的 MVP 开发顺序组织：
+// 子命令大致按依赖顺序排列，从下往上：
 //
 //	board      打印棋盘
 //	analyze    Phase 1：规则 + FEN + Pikafish 链路，输入走法直接出建议
@@ -113,7 +113,7 @@ type common struct {
 	log *slog.Logger
 }
 
-// setup 加载配置并配置日志（§20：从第一天就把日志做好）。
+// setup 加载配置并配置日志。
 func setup(cfgPath string, verbose, quiet bool) (*common, error) {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
@@ -150,7 +150,7 @@ func setup(cfgPath string, verbose, quiet bool) (*common, error) {
 	handler := slog.NewTextHandler(w, &slog.HandlerOptions{
 		Level: level,
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
-			// §20 的日志样式：17:31:02 事件
+			// 时间只留到秒，便于与画面变化的时间点对齐
 			if a.Key == slog.TimeKey {
 				a.Value = slog.StringValue(a.Value.Time().Format("15:04:05"))
 			}

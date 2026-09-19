@@ -128,7 +128,7 @@ func runController(t *testing.T, cfg *config.Config, cal *vision.Calibration, fr
 
 // 端到端验收：连续走 10 手，内部棋盘必须与真实局面完全一致，且不能失步。
 //
-// 对应《技术方案》§23 的验收标准：
+// 对应两条硬性验收标准：
 //
 //	正常走棋识别准确率 ≥ 99%
 //	连续 100 手内部棋盘无失步
@@ -172,7 +172,7 @@ func TestEndToEndMoveTracking(t *testing.T) {
 // 方向的走法在规则上都不合法，因此规则层必须拒绝它。
 //
 // 每个画面重复足够多次，好让初始局面的基线先稳定下来——否则程序会把
-// "已经变过的画面"当成基线（这正是 §17 说的"启动时已经不是初始局面"）。
+// "已经变过的画面"当成基线——也就是"启动时已经不是初始局面"的情形。
 func impossibleChangeFrames(t *testing.T, cal *vision.Calibration) (*image.RGBA, *image.RGBA) {
 	t.Helper()
 
@@ -185,7 +185,7 @@ func impossibleChangeFrames(t *testing.T, cal *vision.Calibration) (*image.RGBA,
 		vision.RenderSyntheticBoard(broken, cal, screenSize)
 }
 
-// §23 最关键的一条：视觉识别错误绝不能污染内部棋盘状态。
+// 最关键的一条：视觉识别错误绝不能污染内部棋盘状态。
 func TestDesyncDoesNotPolluteBoard(t *testing.T) {
 	cal := newCalibration(t)
 	cfg := testConfig(t)
@@ -210,7 +210,7 @@ func TestDesyncDoesNotPolluteBoard(t *testing.T) {
 	}
 }
 
-// 重新同步（§17）：失步后回到标准初始局面。
+// 重新同步：失步后回到标准初始局面。
 func TestResyncRecovers(t *testing.T) {
 	cal := newCalibration(t)
 	cfg := testConfig(t)
