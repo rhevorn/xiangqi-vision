@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -21,6 +20,7 @@ import (
 	"xiangqi-vision/internal/config"
 	"xiangqi-vision/internal/game"
 	"xiangqi-vision/internal/vision"
+	"xiangqi-vision/internal/webui"
 )
 
 // cmdCalibrate 实现第一次启动时的棋盘校准。
@@ -76,16 +76,22 @@ func cmdCalibrate(args []string) error {
 
 	saved := make(chan vision.Rect, 1)
 	mux := http.NewServeMux()
+	imageURL, err := dataURI(img)
+	if err != nil {
+		return fmt.Errorf("编码画面失败: %w", err)
+	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, calibratePage(img))
+		fmt.Fprint(w, webui.CalibratePage(imageURL, ""))
 	})
-	mux.HandleFunc("/save", func(w http.ResponseWriter, r *http.Request) {
-		rect, err := handleCalibrateSave(w, r, img)
+	mux.HandleFunc("/api/calibrate", func(w http.ResponseWriter, r *http.Request) {
+		rect, err := webui.ParseCalibrationRect(r, img)
 		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			c.log.Error("校准结果无效", "err", err)
 			return
 		}
+		fmt.Fprint(w, `{"ok":true}`)
 		select {
 		case saved <- rect:
 		default:
@@ -158,47 +164,6 @@ func cmdCalibrate(args []string) error {
 	return nil
 }
 
-// handleCalibrateSave 校验并接收浏览器提交的棋盘区域。
-func handleCalibrateSave(w http.ResponseWriter, r *http.Request, img image.Image) (vision.Rect, error) {
-	var rect vision.Rect
-	if err := json.NewDecoder(r.Body).Decode(&rect); err != nil {
-		http.Error(w, "请求格式错误: "+err.Error(), http.StatusBadRequest)
-		return rect, err
-	}
-
-	// 规范化：保证从左上到右下
-	if rect.Width < 0 {
-		rect.X += rect.Width
-		rect.Width = -rect.Width
-	}
-	if rect.Height < 0 {
-		rect.Y += rect.Height
-		rect.Height = -rect.Height
-	}
-
-	if !rect.Valid() {
-		err := fmt.Errorf("棋盘尺寸无效: %dx%d", rect.Width, rect.Height)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return rect, err
-	}
-	if _, err := vision.NewCalibration(rect, 0); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return rect, err
-	}
-
-	b := img.Bounds()
-	if rect.X < b.Min.X || rect.Y < b.Min.Y ||
-		rect.X+rect.Width > b.Max.X || rect.Y+rect.Height > b.Max.Y {
-		err := fmt.Errorf("棋盘区域超出画面范围 %dx%d", b.Dx(), b.Dy())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return rect, err
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprint(w, `{"ok":true}`)
-	return rect, nil
-}
-
 func shutdown(srv *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -224,11 +189,11 @@ func defaultOr(s string) string {
 	return s
 }
 
-// encodePNGBase64 把画面编码成可直接嵌进 HTML 的 data URI。
-func encodePNGBase64(img image.Image) (string, error) {
+// dataURI 把画面编码成可直接嵌进 HTML 的 data URI。
+func dataURI(img image.Image) (string, error) {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }

@@ -54,6 +54,8 @@ func main() {
 		err = cmdCalibrate(args)
 	case "watch":
 		err = cmdWatch(args)
+	case "serve":
+		err = cmdServe(args)
 	case "simulate":
 		err = cmdSimulate(args)
 	case "help", "-h", "--help":
@@ -86,7 +88,8 @@ func usage() {
   capture     从安卓设备抓一张截图存成 PNG（Phase 2）
   devices     列出已连接的安卓设备
   calibrate   浏览器点击式棋盘校准（Phase 3）
-  watch       完整链路：自动识别对方走子并给出建议（Phase 5）
+  watch       完整链路：自动识别对方走子并给出建议
+  serve       网页仪表盘：在浏览器里实时看棋盘与建议（推荐）
   simulate    合成一段对局的画面序列，不用手机也能验证整条链路
 
 示例:
@@ -95,7 +98,8 @@ func usage() {
   assistant analyze -fen "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1"
   assistant capture -o shot.png
   assistant calibrate
-  assistant watch                 # 连接真机
+  assistant serve                 # 网页仪表盘（推荐）
+  assistant watch                 # 终端版，连接真机
   assistant simulate              # 生成一段演示画面，不用手机也能验证
   assistant watch -frames testdata/game   # 回放本地帧序列
 
