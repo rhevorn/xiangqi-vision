@@ -52,6 +52,10 @@ testdata: build
 
 ## run: 回放演示画面，不用手机也能看到完整链路
 run: testdata
+	./$(BIN) serve -frames testdata/game
+
+## run-tui: 同上，但用终端界面
+run-tui: testdata
 	./$(BIN) watch -frames testdata/game
 
 ## analyze: 从初始局面走两步并给出建议
